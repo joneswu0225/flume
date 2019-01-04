@@ -1,0 +1,77 @@
+<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+    <!-- 打zip包过程
+          1.解压flume/apache-flume-1.7.0-bin.tar.gz 
+          2.将编译出来的项目jar拷贝到apache-flume-1.7.0-bin/lib 下
+          3.将项目依赖的jar包拷贝到apache-flume-1.7.0-bin/lib 下
+          3.将flume/configs 下面两个自定义的properties拷贝到
+            apache-flume-1.7.0-bin/config 下
+          4.将apache-flume-1.7.0-bin 打包成 applog-collector-flume.zip
+    -->
+    <id>flume-applog-collector</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+    <files>
+    	<file>
+    		<source>${project.basedir}/target/dataifs-applog-flume-datayes-${project.version}.jar</source>
+        	<outputDirectory>/lib</outputDirectory>
+        	<destName>dataifs-applog-flume-datayes-${project.version}.jar</destName>
+    	</file>
+    </files>
+    <fileSets>
+    	<fileSet>
+    		<directory>${project.basedir}/flume/apache-flume-1.7.0-bin</directory>
+            <outputDirectory>/</outputDirectory>
+    	</fileSet>
+    	<fileSet>
+    		<directory>${project.basedir}/flume/apache-flume-1.7.0-bin/bin</directory>
+            <outputDirectory>/bin</outputDirectory>
+            <includes>
+            	<include>*.*</include>
+            </includes>
+            <fileMode>0755</fileMode>
+    	</fileSet>
+    	<fileSet>
+    		<directory>${project.basedir}/flume</directory>
+            <outputDirectory>/conf</outputDirectory>
+            <includes>
+            	<include>*.properties</include>
+            </includes>
+    	</fileSet>
+        <fileSet>
+            <directory>${project.basedir}/scripts</directory>
+            <outputDirectory>/bin</outputDirectory>
+            <includes>
+                <include>*.sh</include>
+            </includes>
+            <fileMode>0755</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/target/maven-archiver</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>pom.properties</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+        	<directory>${project.basedir}/jsenv</directory>
+        	<outputDirectory>/jsenv</outputDirectory>
+        	<includes>
+                <include>**</include>
+            </includes>
+        </fileSet>
+    </fileSets>
+    <dependencySets>
+        <dependencySet>
+            <useProjectArtifact>true</useProjectArtifact>
+            <outputDirectory>/lib</outputDirectory>
+            <scope>runtime</scope>
+            <includes>
+            	<include>com.alibaba:fastjson</include>
+            </includes>
+        </dependencySet>
+    </dependencySets>
+</assembly>
