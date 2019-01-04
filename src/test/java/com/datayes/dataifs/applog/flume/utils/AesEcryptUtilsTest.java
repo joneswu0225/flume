@@ -20,8 +20,9 @@
  * Dissemination of this information or reproduction of this material is 
  * strictly forbidden unless prior written permission is obtained from DataYes.
  */
-package com.datayes.dataifs.applog.flume.utils;
+package java.com.datayes.dataifs.applog.flume.utils;
 
+import com.datayes.dataifs.applog.flume.utils.AesEcryptUtils;
 import org.junit.Test;
 
 /**
