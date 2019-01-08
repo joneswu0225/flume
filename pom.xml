@@ -2,12 +2,12 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.datayes.dataifs</groupId>
-  <artifactId>dataifs-applog-flume</artifactId>
+  <groupId>com.datayes.paas</groupId>
+  <artifactId>applog-flume</artifactId>
   <version>0.0.1-${BUILD_NUMBER}</version>
   <packaging>pom</packaging>
 
-  <name>dataifs-applog-flume</name>
+  <name>applog-flume</name>
   <url>http://maven.apache.org</url>
 
   <properties>
@@ -58,7 +58,7 @@
                         <configuration>
                             <artifacts>
                                 <artifact>
-                                    <file>target/dataifs-applog-flume-datayes-${project.version}.zip</file>
+                                    <file>target/applog-flume-${project.version}.zip</file>
                                     <type>zip</type>
                                     <classifier>dataifs</classifier>
                                 </artifact>
