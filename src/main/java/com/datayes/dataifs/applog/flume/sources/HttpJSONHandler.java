@@ -130,7 +130,7 @@ public class HttpJSONHandler implements HTTPSourceHandler {
                    }
 	    		   JSONArray events = requestO.getJSONArray("events");
 	    		   String appEnv = commonO.getString("appEnv");
-	    		   if(StringUtils.isEmpty(appEnv)){
+	    		   if(StringUtils.isEmpty( appEnv)){
 	    			   appEnv = "PRD";
 	    		   }
 	    		   if(events != null){

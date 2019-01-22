@@ -8,16 +8,10 @@ export JAVA_OPTS
 echo "this dir,"$THISDIR
 echo "basedir,"$BASEDIR
 
-nodeType=$1
-
-if [ -z $nodeType ]; then
-   echo "请指定节点类型, 0:前置负载进程, 1:收集进程"
-   exit 0
-fi
 
 chmod 750 $BASEDIR/bin/flume-ng
 
-
-$BASEDIR/bin/flume-ng agent --conf $BASEDIR/conf --conf-file $BASEDIR/conf/flume-load_balance_node.properties --name balance -Dflume.root.logger=WARN,console -Dflume.monitoring.type=http -Dflume.monitoring.port=34545 >flume.load_balance.log 2>&1 &
+echo "启动收集进程, flume信息监控端口35545."
+nohup $BASEDIR/bin/flume-ng agent --conf $BASEDIR/conf --conf-file $BASEDIR/conf/flume-load_balance_node.properties --name balance -Dflume.root.logger=WARN,console -Dflume.monitoring.type=http -Dflume.monitoring.port=34545 >flume.load_balance.log 2>&1 &
 
 
