@@ -11,6 +11,6 @@ ADD ./docker/entrypoint.sh ${wd}/
 
 WORKDIR ${wd}
 
-RUN sudo chmod 750 ${wd}/docker/entrypoint.sh
+RUN chmod 750 ${wd}/docker/entrypoint.sh
 
 ENTRYPOINT ["./entrypoint.sh"]
