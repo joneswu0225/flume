@@ -61,7 +61,6 @@
                                 <artifact>
                                     <file>target/applog-flume-${project.version}.zip</file>
                                     <type>zip</type>
-                                    <classifier>dataifs</classifier>
                                 </artifact>
                             </artifacts>
                         </configuration>
@@ -102,6 +101,11 @@
             <artifactId>junit</artifactId>
             <version>4.10</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>6.0.5</version>
         </dependency>
     </dependencies>
   

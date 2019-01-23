@@ -9,7 +9,7 @@
             apache-flume-1.7.0-bin/config 下
           4.将apache-flume-1.7.0-bin 打包成 applog-collector-flume.zip
     -->
-    <id>flume-applog-collector</id>
+    <id>flume-applog</id>
     <formats>
         <format>zip</format>
     </formats>
