@@ -38,6 +38,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.flume.ChannelException;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
@@ -341,7 +342,13 @@ public class FlumeHttpSource extends AbstractSource implements
 
 			response.setCharacterEncoding(request.getCharacterEncoding());
 			response.setStatus(HttpServletResponse.SC_OK);
-			response.getWriter().append("{\"success\":true}");
+			if (!CollectionUtils.isEmpty(events)) {
+				response.getWriter().append("{\"success\":true}");
+			} else {
+				response.getWriter().append("{\n\t\"success\":false,\n\t\"message\":\"events is null\"\n}");
+			}
+
+
 			response.flushBuffer();
 			
 			sourceCounter.incrementAppendBatchAcceptedCount();
