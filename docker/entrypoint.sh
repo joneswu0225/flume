@@ -9,6 +9,7 @@ curl ${params}/applog-flume/flume-load_balance_node.properties?raw > conf/flume-
 set +e
 
 ls -l conf/
+
 while read line
 do
     echo ${line}
