@@ -5,6 +5,9 @@ ls -l
 
 curl ${params}/flume/flume-load_balance_node.properties?raw > conf/flume-load_balance_node.properties
 
+# 用于程序启动逻辑
+set +e
+
 ls -l conf/
 while read line
 do
