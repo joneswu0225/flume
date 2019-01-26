@@ -7,7 +7,7 @@ ENV wd=/datayes/applog-flume
 
 
 #用 ADD 会自动解压到目标目录
-ADD ./target/applog-flume-${VERSION}.zip ${wd}/applog-flume-${VERSION}.zip
+ADD ./target/applog-flume-${VERSION}.tar.gz ${wd}/applog-flume-${VERSION}.tar.gz
 
 ADD ./docker/entrypoint.sh ${wd}/entrypoint.sh
 
