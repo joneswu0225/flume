@@ -4,14 +4,14 @@ ARG VERSION
 
 ENV wd=/datayes/applog-flume
 
-WORKDIR ${wd}
+
 
 #用 ADD 会自动解压到目标目录
-ADD ./target/applog-flume-${VERSION}.zip ${wd}/
+ADD ./target/applog-flume-${VERSION}.zip ${wd}/applog-flume-${VERSION}.zip
 
-RUN unzip ${wd}/applog-flume-${VERSION}.zip -d ${wd}/
+ADD ./docker/entrypoint.sh ${wd}/entrypoint.sh
 
-ADD ./docker/entrypoint.sh ${wd}/
+WORKDIR ${wd}
 
 RUN mkdir conf
 
