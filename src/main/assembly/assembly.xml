@@ -12,7 +12,7 @@
     -->
     <id>applog-flume</id>
     <formats>
-        <format>tar</format>
+        <format>zip</format>
     </formats>
     <includeBaseDirectory>false</includeBaseDirectory>
     <files>
