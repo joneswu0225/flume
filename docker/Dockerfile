@@ -12,7 +12,6 @@ ADD ./docker/entrypoint.sh ${wd}/entrypoint.sh
 
 WORKDIR ${wd}
 
-RUN mkdir conf
 
 RUN chmod 777 ${wd}/entrypoint.sh
 
