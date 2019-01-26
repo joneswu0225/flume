@@ -59,8 +59,8 @@
                         <configuration>
                             <artifacts>
                                 <artifact>
-                                    <file>target/applog-flume-${project.version}.zip</file>
-                                    <type>zip</type>
+                                    <file>target/applog-flume-${project.version}.tar</file>
+                                    <type>tar</type>
                                 </artifact>
                             </artifacts>
                         </configuration>

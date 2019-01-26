@@ -5,9 +5,9 @@ ARG VERSION
 ARG wd=/datayes/applog-flume
 
 #用 ADD 会自动解压到目标目录
-ADD ./target/applog-flume-${VERSION}.zip ${wd}/
+ADD ./target/applog-flume-${VERSION}.tar ${wd}/applog-flume-${VERSION}.tar
 
-ADD ./docker/entrypoint.sh ${wd}/
+ADD ./docker/entrypoint.sh ${wd}/entrypoint.sh
 
 WORKDIR ${wd}
 RUN mkdir conf
