@@ -66,5 +66,13 @@
                 <include>com.alibaba:fastjson</include>
             </includes>
         </dependencySet>
+        <dependencySet>
+            <useProjectArtifact>true</useProjectArtifact>
+            <outputDirectory>/lib</outputDirectory>
+            <scope>runtime</scope>
+            <includes>
+                <include>mysql:mysql-connector-java</include>
+            </includes>
+        </dependencySet>
     </dependencySets>
 </assembly>
