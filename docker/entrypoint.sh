@@ -15,7 +15,7 @@ ls -l conf/
 while read line
 do
     echo ${line}
-done < flume-load_balance_node.properties
+done < conf/flume-load_balance_node.properties
 echo "finish export envs"
 
 ./start.sh

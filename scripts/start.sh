@@ -12,6 +12,6 @@ echo "basedir,"$BASEDIR
 chmod 750 $THISDIR/bin/flume-ng
 
 echo "启动收集进程, flume信息监控端口35545."
-nohup $THISDIR/bin/flume-ng agent --conf $BASEDIR/conf --conf-file $BASEDIR/conf/flume-load_balance_node.properties --name balance -Dflume.root.logger=WARN,console -Dflume.monitoring.type=http -Dflume.monitoring.port=34545 >flume.load_balance.log 2>&1 &
+$THISDIR/bin/flume-ng agent --conf $THISDIR/conf --conf-file $THISDIR/conf/flume-load_balance_node.properties --name balance -Dflume.root.logger=WARN,console -Dflume.monitoring.type=http -Dflume.monitoring.port=34545 >flume.load_balance.log 2>&1 &
 
 
