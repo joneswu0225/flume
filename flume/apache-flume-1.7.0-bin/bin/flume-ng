@@ -29,7 +29,7 @@ FLUME_VERSION_CLASS="org.apache.flume.tools.VersionInfo"
 FLUME_TOOLS_CLASS="org.apache.flume.tools.FlumeToolsMain"
 
 BASEDIR="/datayes/flume/bin"
-export JAVA_HOME="/usr/lib/jvm/java-8-oracle"
+export JAVA_HOME="/usr/lib/jvm/jdk1.8.0_102"
 
 CLEAN_FLAG=1
 ################################
