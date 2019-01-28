@@ -70,37 +70,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
         } catch (ClassNotFoundException e) {
             log.error("ClassNotFountException", e);
         }
-        String url = String.format(CONNURL, hostname, port, databaseName);
 
-        //调用DriverManager对象的getConnection()方法，获得一个Connection对象
-        columnNames = new ArrayList<>();
-        String tableSql = String.format(SELECTSQL,tableName);
-        try {
-            //mysql连接
-            conn = DriverManager.getConnection(url, user, password);
-            conn.setAutoCommit(false);
-            //获取字段名
-            preparedStatement = conn.prepareStatement(tableSql);
-            ResultSetMetaData rsmd = preparedStatement.getMetaData();
-            int size = rsmd.getColumnCount();
-            StringBuilder placeholders = new StringBuilder("?");//占位符
-            for (int i = 1; i < size; i++) {
-                columnNames.add(rsmd.getColumnName(i+1));
-            }
-            for (int i = 2; i < size; i++) {
-                placeholders.append(",?");
-            }
-            String columns = Joiner.on(",").join(columnNames);
-
-            String insertSql = String.format(INSERTSQL, tableName, columns, placeholders);
-
-            //创建一个Statement对象
-            preparedStatement = conn.prepareStatement(insertSql);
-            log.info("MysqlSink insertSql: {}", insertSql);
-        } catch (SQLException e) {
-            log.error("SQLException ", e);
-            System.exit(1);
-        }
     }
 
 
@@ -127,6 +97,8 @@ public class MysqlSink extends AbstractSink implements Configurable {
 
     @Override
     public Status process() {
+
+
         Status result = Status.READY;
         Channel channel = getChannel();
         Transaction transaction = channel.getTransaction();
@@ -154,6 +126,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
                         tableName = String.format(tableName, appId);
                         tableName += (StringUtils.isNotBlank(appEnv) ? ("_" + appEnv) : "");
                         resultMap.put("tableName", tableName);
+                        createPrepareStatement(tableName);
                     } else {
                         continue;
                     }
@@ -202,6 +175,40 @@ public class MysqlSink extends AbstractSink implements Configurable {
             transaction.close();
         }
         return result;
+    }
+
+    public void createPrepareStatement (String tableName) {
+        String url = String.format(CONNURL, hostname, port, databaseName);
+
+        //调用DriverManager对象的getConnection()方法，获得一个Connection对象
+        columnNames = new ArrayList<>();
+        String tableSql = String.format(SELECTSQL,tableName);
+        try {
+            //mysql连接
+            conn = DriverManager.getConnection(url, user, password);
+            conn.setAutoCommit(false);
+            //获取字段名
+            preparedStatement = conn.prepareStatement(tableSql);
+            ResultSetMetaData rsmd = preparedStatement.getMetaData();
+            int size = rsmd.getColumnCount();
+            StringBuilder placeholders = new StringBuilder("?");//占位符
+            for (int i = 1; i < size; i++) {
+                columnNames.add(rsmd.getColumnName(i+1));
+            }
+            for (int i = 2; i < size; i++) {
+                placeholders.append(",?");
+            }
+            String columns = Joiner.on(",").join(columnNames);
+
+            String insertSql = String.format(INSERTSQL, tableName, columns, placeholders);
+
+            //创建一个Statement对象
+            preparedStatement = conn.prepareStatement(insertSql);
+            log.info("MysqlSink insertSql: {}", insertSql);
+        } catch (SQLException e) {
+            log.error("SQLException ", e);
+            System.exit(1);
+        }
     }
 
 }
