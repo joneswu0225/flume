@@ -8,6 +8,9 @@ export JAVA_OPTS
 echo "this dir,"$THISDIR
 echo "basedir,"$BASEDIR
 
+echo "JAVAHOME,"$JAVA_HOME
+echo "PATH,"$PATH
+
 
 chmod 750 $THISDIR/bin/flume-ng
 
