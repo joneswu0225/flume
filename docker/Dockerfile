@@ -1,4 +1,4 @@
-FROM registry.datayes.com/base/java:8u102-latest
+FROM registry-ci.datayes.com/base/flume:1.8.0-1
 
 ARG VERSION
 
