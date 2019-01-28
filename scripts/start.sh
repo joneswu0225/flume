@@ -8,13 +8,9 @@ export JAVA_OPTS
 echo "this dir,"$THISDIR
 echo "basedir,"$BASEDIR
 
-echo "JAVAHOME,"$JAVA_HOME
-echo "PATH,"$PATH
-
-
 chmod 750 $THISDIR/bin/flume-ng
 
-echo "启动收集进程, flume信息监控端口35545."
-$THISDIR/bin/flume-ng agent --conf $THISDIR/conf --conf-file $THISDIR/conf/flume-load_balance_node.properties --name balance -Dflume.root.logger=INFO,console -Dflume.monitoring.type=http -Dflume.monitoring.port=34545
+echo "启动收集进程, flume信息监控端口34545."
+$THISDIR/bin/flume-ng agent --conf $THISDIR/conf --conf-file $THISDIR/conf/flume-load_balance_node.properties --name balance -Dflume.root.logger=INFO,console -Dflume.monitoring.type=http -Dflume.monitoring.port=34545 >flume.collector.log
 
 
