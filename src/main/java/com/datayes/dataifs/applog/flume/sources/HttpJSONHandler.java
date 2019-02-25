@@ -145,10 +145,8 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 	    					   event.put("referer", referer);
 	    				   }
 	    				   event.put("recordTime", timestamp);
-	    				   if(StringUtils.isEmpty(timestamp)){
-	    				   		timestamp = String.valueOf(System.currentTimeMillis());
-						   }
-	    				   
+
+						   event.put("timestamp", System.currentTimeMillis());
 	    				   JSONEvent e = new JSONEvent();
 	    				   Map<String, String> headers = new HashMap<String, String>();
 	    				   headers.put("appId", appId.toString());

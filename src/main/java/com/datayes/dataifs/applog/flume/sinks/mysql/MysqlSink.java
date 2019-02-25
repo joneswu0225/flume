@@ -14,7 +14,9 @@ import org.apache.flume.conf.Configurable;
 import org.apache.flume.sink.AbstractSink;
 
 import java.sql.*;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +28,6 @@ public class MysqlSink extends AbstractSink implements Configurable {
     private String hostname;
     private String port;
     private String databaseName;
-    private String tableName;
     private String user;
     private String password;
     private PreparedStatement preparedStatement;
@@ -52,8 +53,6 @@ public class MysqlSink extends AbstractSink implements Configurable {
         Preconditions.checkNotNull(port, "port must be set!!");
         databaseName = context.getString(Constant.DATABASENAME);
         Preconditions.checkNotNull(databaseName, "databaseName must be set!!");
-        tableName = context.getString(Constant.TABLENAME);
-        Preconditions.checkNotNull(tableName, "tableName must be set!!");
         user = context.getString(Constant.USER);
         Preconditions.checkNotNull(user, "user must be set!!");
         password = context.getString(Constant.PASSWORD);
@@ -104,6 +103,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
         Transaction transaction = channel.getTransaction();
         Event event;
         String content;
+        String tableName = "";
 
         transaction.begin();
         try {
@@ -121,12 +121,12 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     Map<String,String> resultMap = new HashMap<>();
                     String appId = commonJson.getString("appId");
                     String appEnv = commonJson.getString("appEnv");
-                    String tableName = "applog_%s";
+                    tableName = "applog_%s";
                     if (StringUtils.isNotBlank(appId)) {
                         tableName = String.format(tableName, appId);
                         tableName += (StringUtils.isNotBlank(appEnv) ? ("_" + appEnv) : "");
                         resultMap.put("tableName", tableName);
-                        createPrepareStatement(tableName);
+
                     } else {
                         continue;
                     }
@@ -136,6 +136,10 @@ public class MysqlSink extends AbstractSink implements Configurable {
 
                     resultMap.putAll(commonMap);
                     resultMap.putAll(eventMap);
+
+                    resultMap.put("appeartime", stampToDate(eventJson.getString("timestamp")));
+
+
                     resultMap.put("detail", eventJson.toJSONString());
                     resultMap.put("common", commonJson.toJSONString());
 
@@ -148,9 +152,14 @@ public class MysqlSink extends AbstractSink implements Configurable {
             }
             transaction.commit();
 
+
+
             if (CollectionUtils.isNotEmpty(resultList)) {
+                log.info("tableName=" + resultList.get(0).get("tableName"));
+                createPrepareStatement(resultList.get(0).get("tableName"));
                 preparedStatement.clearBatch();
                 for (Map<String, String> temp : resultList) {
+
                     for (int i = 0; i < columnNames.size(); i++) {
                         preparedStatement.setString(i+1, temp.get(columnNames.get(i)));
                     }
@@ -177,7 +186,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
         return result;
     }
 
-    public void createPrepareStatement (String tableName) {
+    private void createPrepareStatement (String tableName) {
         String url = String.format(CONNURL, hostname, port, databaseName);
 
         //调用DriverManager对象的getConnection()方法，获得一个Connection对象
@@ -209,6 +218,18 @@ public class MysqlSink extends AbstractSink implements Configurable {
             log.error("SQLException ", e);
             System.exit(1);
         }
+    }
+
+    /*
+     * 将时间戳转换为时间
+     */
+    public static String stampToDate(String s){
+        String res;
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        long lt = new Long(s);
+        Date date = new Date(lt);
+        res = simpleDateFormat.format(date);
+        return res;
     }
 
 }
