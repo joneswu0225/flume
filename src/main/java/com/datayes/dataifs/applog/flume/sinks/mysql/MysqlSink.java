@@ -38,7 +38,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
     private static final String CONNURL = "jdbc:mysql://%s:%s/%s?useUnicode=true&characterEncoding=UTF-8&pinGlobalTxToPhysicalConnection=true&autoReconnect=true";
     private static final String SELECTSQL = "select * from %s limit 0";
     private static final String INSERTSQL = "insert into %s (%s) values (%s)";
-    private static final String DRIVER = "com.mysql.cj.jdbc.Driver";
+    private static final String DRIVER = "com.mysql.jdbc.Driver";
 
     public MysqlSink () {
         log.info("MysqlSink start...");
@@ -96,17 +96,14 @@ public class MysqlSink extends AbstractSink implements Configurable {
 
     @Override
     public Status process() {
-
-
         Status result = Status.READY;
         Channel channel = getChannel();
         Transaction transaction = channel.getTransaction();
         Event event;
         String content;
-        String tableName = "";
-
-        transaction.begin();
+        String tableName;
         try {
+            transaction.begin();
             List<Map<String, String>> resultList = new ArrayList<>();
             for (int i = 0; i < batchSize; i++) {
                 event = channel.take();
@@ -124,7 +121,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     tableName = "applog_%s";
                     if (StringUtils.isNotBlank(appId)) {
                         tableName = String.format(tableName, appId);
-                        tableName += (StringUtils.isNotBlank(appEnv) ? ("_" + appEnv) : "");
+                        tableName += ((StringUtils.isNotBlank(appEnv) && !appEnv.toUpperCase().equals("PRD")) ? ("_" + appEnv) : "");
                         resultMap.put("tableName", tableName);
 
                     } else {
