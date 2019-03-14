@@ -137,7 +137,9 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     resultMap.putAll(commonMap);
                     resultMap.putAll(eventMap);
 
-                    resultMap.put("appeartime", stampToDate(eventJson.getString("timestamp")));
+                    String sysTimestamp = System.currentTimeMillis() + "";
+                    resultMap.put("recordtime", sysTimestamp);
+                    resultMap.put("appeartime", stampToDate(sysTimestamp));
 
 
                     resultMap.put("detail", eventJson.toJSONString());
