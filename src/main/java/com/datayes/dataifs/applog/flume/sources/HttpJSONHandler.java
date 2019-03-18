@@ -25,10 +25,8 @@ package com.datayes.dataifs.applog.flume.sources;
 import java.io.BufferedReader;
 import java.net.URLDecoder;
 import java.nio.charset.UnsupportedCharsetException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.regex.Pattern;
 
 import javax.servlet.http.Cookie;
@@ -145,13 +143,15 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 	    					   event.put("referer", referer);
 	    				   }
 	    				   event.put("recordTime", timestamp);
+						   long curTimestamp = System.currentTimeMillis();
+						   event.put("timestamp", curTimestamp);
+						   event.put("appeartime", stampToDate(curTimestamp));
 
-						   event.put("timestamp", System.currentTimeMillis());
-	    				   JSONEvent e = new JSONEvent();
+						   JSONEvent e = new JSONEvent();
 	    				   Map<String, String> headers = new HashMap<String, String>();
 	    				   headers.put("appId", appId.toString());
 	    				   headers.put("eventId", eventId);
-	    				   headers.put("timestamp", String.valueOf(localTimeStamp));
+	    				   headers.put("timestamp", String.valueOf(curTimestamp));
 	    				   headers.put("appEnv", appEnv);
 	    				   
 	    				   JSONObject newEventBody = new JSONObject();
@@ -174,6 +174,12 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 	    }
 	    LOG.debug("parse request, generate JSONEvent:" + eventList.size());
 	    return getSimpleEvents(eventList);
+	}
+
+	private static SimpleDateFormat DATETIME_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+	public static String stampToDate(long s){
+		return DATETIME_FORMAT.format(new Date(s));
 	}
 
 	public static String getIp(HttpServletRequest request) {

@@ -121,7 +121,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     tableName = "applog_%s";
                     if (StringUtils.isNotBlank(appId)) {
                         tableName = String.format(tableName, appId);
-                        tableName += ((StringUtils.isNotBlank(appEnv) && !appEnv.toUpperCase().equals("PRD")) ? ("_" + appEnv) : "");
+                        tableName += ((StringUtils.isNotBlank(appEnv) && !appEnv.toUpperCase().equals("PRD")) ? ("_" + appEnv.toLowerCase()) : "");
                         resultMap.put("tableName", tableName);
 
                     } else {
@@ -134,14 +134,8 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     resultMap.putAll(commonMap);
                     resultMap.putAll(eventMap);
 
-                    String sysTimestamp = System.currentTimeMillis() + "";
-                    resultMap.put("recordtime", sysTimestamp);
-                    resultMap.put("appeartime", stampToDate(sysTimestamp));
-
-
                     resultMap.put("detail", eventJson.toJSONString());
                     resultMap.put("common", commonJson.toJSONString());
-
 
                     resultList.add(resultMap);
                 } else {
@@ -180,7 +174,9 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     "Transaction rolled back.", e);
             Throwables.propagate(e);
         } finally {
-            transaction.close();
+            if(transaction != null){
+                transaction.close();
+            }
         }
         return result;
     }
@@ -215,20 +211,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
             log.info("MysqlSink insertSql: {}", insertSql);
         } catch (SQLException e) {
             log.error("SQLException ", e);
-            System.exit(1);
         }
-    }
-
-    /*
-     * 将时间戳转换为时间
-     */
-    public static String stampToDate(String s){
-        String res;
-        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        long lt = new Long(s);
-        Date date = new Date(lt);
-        res = simpleDateFormat.format(date);
-        return res;
     }
 
 }

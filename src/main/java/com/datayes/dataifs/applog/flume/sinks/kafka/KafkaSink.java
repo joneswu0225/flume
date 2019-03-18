@@ -23,12 +23,8 @@
 package com.datayes.dataifs.applog.flume.sinks.kafka;
 
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
@@ -205,7 +201,6 @@ public class KafkaSink extends AbstractSink implements Configurable {
 					}
 				}
 			}
-			
 			KeyedMessage<String, String> data;
 			String topic = null;
 			if("PRD".equalsIgnoreCase(appEnv) || "product".equalsIgnoreCase(appEnv)){
@@ -243,7 +238,15 @@ public class KafkaSink extends AbstractSink implements Configurable {
 		}
 		return ret;
 	}
-    
+
+	/*
+     * 将时间戳转换为时间
+     */
+	private static SimpleDateFormat DATETIME_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+	public static String stampToDate(String s){
+		return DATETIME_FORMAT.format(new Date(Long.parseLong(s)));
+	}
     /*@Override
     public Status process() throws EventDeliveryException {
         Status status = Status.READY;
