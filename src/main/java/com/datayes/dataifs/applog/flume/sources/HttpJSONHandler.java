@@ -131,6 +131,7 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 	    		   if(StringUtils.isEmpty( appEnv)){
 	    			   appEnv = "PRD";
 	    		   }
+				   commonO.put("appEnv", appEnv.toUpperCase());
 	    		   if(events != null){
 	    			   //current page url.
 	    			   String referer=request.getHeader("Referer");
