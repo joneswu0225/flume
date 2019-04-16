@@ -30,6 +30,7 @@ import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.apache.flume.Channel;
 import org.apache.flume.Context;
@@ -38,8 +39,6 @@ import org.apache.flume.EventDeliveryException;
 import org.apache.flume.Transaction;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.sink.AbstractSink;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
@@ -48,14 +47,10 @@ import com.google.common.collect.ImmutableMap;
 /**
  * kafka sink.
  */
+@Slf4j
 public class KafkaSink extends AbstractSink implements Configurable {
     // - [ constant fields ] ----------------------------------------
 
-    /**
-     * The constant logger.
-     */
-    private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSink.class);
-    
     /**
      * The Parameters.
      */
@@ -113,7 +108,7 @@ public class KafkaSink extends AbstractSink implements Configurable {
     }
 
     @Override
-    public synchronized void start() {
+    public void start() {
         //初始化producer
     	super.start();
         ProducerConfig config = new ProducerConfig(this.parameters);
@@ -121,37 +116,41 @@ public class KafkaSink extends AbstractSink implements Configurable {
     }
 
     @Override
-    public synchronized void stop() {
+    public void stop() {
         //关闭producer
     	producer.close();
     }
     
     @Override
     public Status process() throws EventDeliveryException {
-        Status status = Status.READY;
+        Status result = Status.READY;
         Channel channel = getChannel();
         Transaction tx = channel.getTransaction();
-        try {
+		Event event;
+		try {
         	tx.begin();
-        	List<Event> events = getBatchEvens(channel);
-        	if(events.size() > 0){
-        		LOGGER.debug("get events size:" + events.size());
-        		List<KeyedMessage<String, String>> outputDatas = new ArrayList<>();
-        		for(Event event : events){
-        			KeyedMessage<String, String> temp = toKeyedMessage(event);
-        			if(temp != null){
-        				outputDatas.add(temp);
-        			}
-        		}
-        		
-        		// 将批量的数据通过producer发送给s
- 				producer.send(outputDatas);
-        	}
+			List<KeyedMessage<String, String>> resultList = new ArrayList<>();
+			for (int i = 0; i < batchSize; i++) {
+				event = channel.take();
+				if (event != null) {
+					KeyedMessage<String, String> temp = toKeyedMessage(event);
+					if(temp != null){
+						resultList.add(temp);
+					}
+				} else {
+					result = Status.BACKOFF;
+					break;
+				}
+			}
+			if(resultList.size() > 0) {
+				producer.send(resultList);
+				log.info("finish send events size:" + resultList.size());
+			}
         	tx.commit();
-        	status = Status.READY;
         } catch (Throwable t) {
-        	LOGGER.error("", t);
-            status = Status.BACKOFF;
+			log.info("error in handle kafka process");
+        	log.error("", t);
+			result = Status.BACKOFF;
             tx.rollback();
             // re-throw all Errors
             if (t instanceof Error) {
@@ -160,7 +159,7 @@ public class KafkaSink extends AbstractSink implements Configurable {
         } finally{
         	 tx.close();
         }
-        return status;
+        return result;
     }
 
 	/**
@@ -202,13 +201,14 @@ public class KafkaSink extends AbstractSink implements Configurable {
 				}
 			}
 			KeyedMessage<String, String> data;
-			String topic = null;
-			if("PRD".equalsIgnoreCase(appEnv) || "product".equalsIgnoreCase(appEnv)){
-				topic = topicPrefix + "-" + headers.get("appId");
-			}else{
-				topic = topicPrefix + "-" + headers.get("appId") + "-" + appEnv;
-			}
-		    // if partition key does'nt exist
+//			String topic = null;
+//			if("PRD".equalsIgnoreCase(appEnv) || "product".equalsIgnoreCase(appEnv)){
+//				topic = topicPrefix + "-" + headers.get("appId");
+//			}else{
+//				topic = topicPrefix + "-" + headers.get("appId") + "-" + appEnv;
+//			}
+			String topic = topicPrefix + "-" + headers.get("appId");
+			// if partition key does'nt exist
 		    if (StringUtils.isEmpty(partitionKey)) {
 		    	data = new KeyedMessage<String, String>(topic, extractOne.toJSONString());
 		    } else {
@@ -217,26 +217,9 @@ public class KafkaSink extends AbstractSink implements Configurable {
 		    
 		    return data;
 		}catch(Exception e){
-			LOGGER.warn("事件扁平化异常, ", e);
+			log.error("事件扁平化异常, " + e.getMessage(), e);
 			return null;
 		}
-	}
-
-	/**
-	 * 从channel里面获取最多batchSize数量的事件.
-	 * @param channel
-	 * @return
-	 */
-	private List<Event> getBatchEvens(Channel channel) {
-		List<Event> ret = new ArrayList<Event>();
-		Event next = channel.take();
-		int count = 0;
-		while(next != null && count < batchSize){
-			ret.add(next);
-			next = channel.take();
-			count++;
-		}
-		return ret;
 	}
 
 	/*
@@ -253,7 +236,7 @@ public class KafkaSink extends AbstractSink implements Configurable {
         Channel channel = getChannel();
         Transaction tx = channel.getTransaction();
         long batchSize = parameters.get("batchSize") == null?DEFAULT_BATCH_SIZE:Long.parseLong((String)parameters.get("batchSize"));
-        LOGGER.debug("batchSize=" + batchSize);
+        log.debug("batchSize=" + batchSize);
         
         try {
                 tx.begin();
@@ -274,7 +257,7 @@ public class KafkaSink extends AbstractSink implements Configurable {
                 for (txnEventCount = 0; txnEventCount < batchSize; txnEventCount++) {
 	                Event event = channel.take();
 	
-	                LOGGER.debug("get event:" + EventHelper.dumpEvent(event));
+	                log.debug("get event:" + EventHelper.dumpEvent(event));
 	                String eventData = new String(event.getBody(), encoding);
 	
 	                Map<String, String> headers = event.getHeaders();
@@ -297,7 +280,7 @@ public class KafkaSink extends AbstractSink implements Configurable {
                tx.commit();
                status = Status.READY;
         } catch (Throwable t) {
-        	LOGGER.error("", t);
+        	log.error("", t);
             tx.rollback();
             status = Status.BACKOFF;
 

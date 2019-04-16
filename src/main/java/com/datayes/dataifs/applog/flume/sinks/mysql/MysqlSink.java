@@ -33,7 +33,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
     private Connection conn;
     private int batchSize;
 
-    private static final String CONNURL = "jdbc:mysql://%s:%s/%s?useUnicode=true&characterEncoding=UTF-8&pinGlobalTxToPhysicalConnection=true&autoReconnect=true";
+    private static final String CONNURL = "jdbc:mysql://%s:%s/%s?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true";
     private static final String SELECTSQL = "select * from %s limit 0";
     private static final String INSERTSQL = "insert into %s (%s) values (%s)";
     private static final String DRIVER = "com.mysql.jdbc.Driver";
@@ -65,23 +65,36 @@ public class MysqlSink extends AbstractSink implements Configurable {
 
     @Override
     public void start() {
-        log.info("start method coming ");
+        log.info("start mysqlSink");
         super.start();
         try {
             Class.forName(DRIVER);
         } catch (ClassNotFoundException e) {
             log.error("ClassNotFountException", e);
         }
-        String url = String.format(CONNURL, hostname, port, databaseName);
-        try {
-            //mysql连接
-            conn = DriverManager.getConnection(url, user, password);
-            conn.setAutoCommit(false);
-        } catch (SQLException e) {
-
-        }
+        refreshDbConn();
+        Timer tt = new Timer();//定时类
+        tt.schedule(new TimerTask() {//创建一个定时任务
+            @Override
+            public void run() {
+            synchronized (conn) {
+                refreshDbConn();
+            }
+            }
+        }, 0, expirationTime * 1000);
     }
 
+    private void refreshDbConn(){
+        log.debug("start to refresh db connection");
+        try {
+            String url = String.format(CONNURL, hostname, port, databaseName);
+            conn = DriverManager.getConnection(url, user, password);
+            conn.setAutoCommit(false);
+            TimerConnMap.clear();
+        } catch (SQLException e) {
+            log.error("fail to create db connection ", e);
+        }
+    }
 
     @Override
     public void stop() {
@@ -130,7 +143,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     String appEnv = commonJson.getString("appEnv");
                     if (StringUtils.isNotBlank(appId)) {
                         curTableName = String.format(tableName, appId);
-                        curTableName += ((StringUtils.isNotBlank(appEnv) && !appEnv.toUpperCase().equals("PRD")) ? ("_" + appEnv.toLowerCase()) : "");
+//                        curTableName += ((StringUtils.isNotBlank(appEnv) && !appEnv.toUpperCase().equals("PRD")) ? ("_" + appEnv.toLowerCase()) : "");
                         resultMap.put("tableName", curTableName);
                     } else {
                         continue;
@@ -153,34 +166,35 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     break;
                 }
             }
+            if (CollectionUtils.isNotEmpty(resultList)) {
+                synchronized (conn) {
+                    PreparedStatement statement = getPrepareStatement(curTableName);
+                    List<String> columnNames = getColumnNames(curTableName);
+                    try {
+                        for (Map<String, String> temp : resultList) {
+                            for (int i = 0; i < columnNames.size(); i++) {
+                                statement.setString(i + 1, temp.get(columnNames.get(i)));
+                            }
+                            statement.addBatch();
+                        }
+                        statement.executeBatch();
+                        conn.commit();
+                        log.info("finish insert {} records to table {}", resultList.size(), curTableName);
+                    } catch (SQLException e) {
+                        log.error("error execute batch to table " + curTableName, e);
+                        conn.rollback();
+                    }
+                }
+            }
             transaction.commit();
             if (transaction != null) {
                 transaction.close();
             }
-            if (CollectionUtils.isNotEmpty(resultList)) {
-                PreparedStatement statement = getPrepareStatement(curTableName);
-                List<String> columnNames = getColumnNames(curTableName);
-                try {
-                    for (Map<String, String> temp : resultList) {
-                        for (int i = 0; i < columnNames.size(); i++) {
-                            statement.setString(i + 1, temp.get(columnNames.get(i)));
-                        }
-                        statement.addBatch();
-                    }
-                    statement.executeBatch();
-                    conn.commit();
-                    log.info("finish insert {} records to table {}", resultList.size(), curTableName);
-                } catch (SQLException e) {
-                    conn.rollback();
-                    log.error("error execute batch to table " + curTableName, e);
-                }
-            }
-
         } catch (Exception e) {
+            result = Status.BACKOFF;
             log.error("Failed to commit transaction.", e);
             Throwables.propagate(e);
         }
-
         return result;
     }
 
@@ -243,6 +257,11 @@ class TimerConnMap {
         statmentMap.put(key, value);
         columnMap.put(key, columnName);
         keytime.put(key, System.currentTimeMillis());
+    }
+
+    public static void clear(){
+        statmentMap.clear();
+        keytime.clear();
     }
 
     public static boolean containsKey(String key) {
