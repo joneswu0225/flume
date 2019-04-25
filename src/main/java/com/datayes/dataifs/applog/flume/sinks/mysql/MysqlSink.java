@@ -77,9 +77,9 @@ public class MysqlSink extends AbstractSink implements Configurable {
         tt.schedule(new TimerTask() {//创建一个定时任务
             @Override
             public void run() {
-            synchronized (conn) {
-                refreshDbConn();
-            }
+                synchronized (conn) {
+                    refreshDbConn();
+                }
             }
         }, 0, expirationTime * 1000);
     }
@@ -166,11 +166,13 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     break;
                 }
             }
+            transaction.commit();
+            transaction.close();
             if (CollectionUtils.isNotEmpty(resultList)) {
                 synchronized (conn) {
-                    PreparedStatement statement = getPrepareStatement(curTableName);
-                    List<String> columnNames = getColumnNames(curTableName);
                     try {
+                        PreparedStatement statement = getPrepareStatement(curTableName);
+                        List<String> columnNames = getColumnNames(curTableName);
                         for (Map<String, String> temp : resultList) {
                             for (int i = 0; i < columnNames.size(); i++) {
                                 statement.setString(i + 1, temp.get(columnNames.get(i)));
@@ -185,10 +187,6 @@ public class MysqlSink extends AbstractSink implements Configurable {
                         conn.rollback();
                     }
                 }
-            }
-            transaction.commit();
-            if (transaction != null) {
-                transaction.close();
             }
         } catch (Exception e) {
             result = Status.BACKOFF;
