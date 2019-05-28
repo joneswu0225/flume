@@ -84,7 +84,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
         }, 0, expirationTime * 1000);
     }
 
-    private void refreshDbConn(){
+    private void refreshDbConn() {
         log.debug("start to refresh db connection");
         try {
             String url = String.format(CONNURL, hostname, port, databaseName);
@@ -140,7 +140,6 @@ public class MysqlSink extends AbstractSink implements Configurable {
 
                     Map<String, String> resultMap = new HashMap<>();
                     String appId = commonJson.getString("appId");
-                    String appEnv = commonJson.getString("appEnv");
                     if (StringUtils.isNotBlank(appId)) {
                         curTableName = String.format(tableName, appId);
 //                        curTableName += ((StringUtils.isNotBlank(appEnv) && !appEnv.toUpperCase().equals("PRD")) ? ("_" + appEnv.toLowerCase()) : "");
@@ -166,20 +165,25 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     break;
                 }
             }
-            transaction.commit();
-            transaction.close();
+
             if (CollectionUtils.isNotEmpty(resultList)) {
                 synchronized (conn) {
                     try {
-                        PreparedStatement statement = getPrepareStatement(curTableName);
-                        List<String> columnNames = getColumnNames(curTableName);
+                        String curtable = null;
+                        Map<String, PreparedStatement> tableStatment = new HashMap();
+                        List<String> columnNames;
                         for (Map<String, String> temp : resultList) {
+                            curtable = temp.get("tableName");
+                            tableStatment.putIfAbsent(curtable, getPrepareStatement(curtable));
+                            columnNames = getColumnNames(curtable);
                             for (int i = 0; i < columnNames.size(); i++) {
-                                statement.setString(i + 1, temp.get(columnNames.get(i)));
+                                tableStatment.get(curtable).setString(i + 1, temp.get(columnNames.get(i)));
                             }
-                            statement.addBatch();
+                            tableStatment.get(curtable).addBatch();
                         }
-                        statement.executeBatch();
+                        for(PreparedStatement statment:tableStatment.values()){
+                            statment.executeBatch();
+                        }
                         conn.commit();
                         log.info("finish insert {} records to table {}", resultList.size(), curTableName);
                     } catch (SQLException e) {
@@ -188,10 +192,18 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     }
                 }
             }
+            transaction.commit();
         } catch (Exception e) {
             result = Status.BACKOFF;
             log.error("Failed to commit transaction.", e);
+            try {
+                transaction.rollback();
+            } catch (Exception et){
+                log.error("Failed to rollback transaction.", et);
+            }
             Throwables.propagate(e);
+        } finally {
+            transaction.close();
         }
         return result;
     }
@@ -203,7 +215,6 @@ public class MysqlSink extends AbstractSink implements Configurable {
     private PreparedStatement getPrepareStatement(String tableName) {
         //调用DriverManager对象的getConnection()方法，获得一个Connection对象
         if (TimerConnMap.containsKey(tableName)) {
-            log.info("get prepareStatment of table {}", tableName);
             return TimerConnMap.getStatment(tableName);
         } else {
             log.info("no prepareStatment of table {}, start to create", tableName);
@@ -257,7 +268,7 @@ class TimerConnMap {
         keytime.put(key, System.currentTimeMillis());
     }
 
-    public static void clear(){
+    public static void clear() {
         statmentMap.clear();
         keytime.clear();
     }
