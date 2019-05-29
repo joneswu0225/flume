@@ -113,15 +113,16 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 			}
 			String ip = getIp(request);
 			String result = sb.toString();
-			log.info("get request[ " + ip + " ]:");
 			log.debug("get request[ " + ip + " ]:" + result);
 			JSONArray array = JSON.parseArray(result);
 			if(array != null){
+				Long appId = array.getJSONObject(0).getJSONObject("common").getLong("appId");
+				log.info("get request[ " + ip + " ] appId :" + appId);
 				for(int i=0; i<array.size(); i++){
 					JSONObject requestO = array.getJSONObject(i);
 					JSONObject commonO = requestO.getJSONObject("common");
 					String userId = commonO.getString("userId");
-					Long appId = commonO.getLong("appId");
+					appId = commonO.getLong("appId");
 					//进行userId解密
 					commonO.put("ip", ip);
 					if(userId != null && Pattern.matches(base64Model, userId)){

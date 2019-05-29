@@ -155,6 +155,9 @@ public class MysqlSink extends AbstractSink implements Configurable {
 
                     resultMap.putAll(commonMap);
                     resultMap.putAll(eventMap);
+                    if(resultMap.containsKey("url") && resultMap.get("url").length() > 250){
+                        resultMap.put("url", resultMap.get("url").substring(0,250));
+                    }
 
                     resultMap.put("detail", eventJson.toJSONString());
                     resultMap.put("common", commonJson.toJSONString());
