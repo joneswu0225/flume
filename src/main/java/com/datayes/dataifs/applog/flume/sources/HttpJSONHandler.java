@@ -106,6 +106,15 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 				}
 				log.debug("cookie from " + request.getRequestURI() + " " + JSON.toJSONString(cookies));
 			}
+			Map<String, String> headerMap = new HashMap<>();
+			Enumeration<String> headerNames = request.getHeaderNames();
+			while (headerNames.hasMoreElements()){
+				String name = headerNames.nextElement();
+				headerMap.put(name.replaceAll("-",""), request.getHeader(name));
+			}
+			if(!headerMap.containsKey("referer")){
+				headerMap.put("referer", "");
+			}
 			String temp=null;
 			StringBuilder sb = new StringBuilder();
 			while((temp = reader.readLine()) != null){
@@ -130,6 +139,9 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 					}
 					if(cookieMap.size() > 0){
 						commonO.put("cookie", cookieMap);
+					}
+					if(headerMap.size() > 0){
+						commonO.put("header", headerMap);
 					}
 					JSONArray events = requestO.getJSONArray("events");
 					String appEnv = commonO.getString("appEnv");

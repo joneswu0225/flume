@@ -128,7 +128,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
         String curTableName = null;
         try {
             transaction.begin();
-            List<Map<String, String>> resultList = new ArrayList<>();
+            List<Map<String, Object>> resultList = new ArrayList<>();
             for (int i = 0; i < batchSize; i++) {
                 event = channel.take();
                 if (event != null) {//对事件进行处理
@@ -138,11 +138,16 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     JSONObject commonJson = jsonObject.getJSONObject("common");
                     JSONObject eventJson = jsonObject.getJSONObject("event");
 
-                    Map<String, String> resultMap = new HashMap<>();
+                    Map<String, Object> resultMap = new HashMap<>();
+                    if(commonJson.containsKey("header")){
+                        Map<String, Object> headerMap = commonJson.getJSONObject("header");
+                        resultMap.putAll(headerMap);
+                    }
                     String appId = commonJson.getString("appId");
                     if (StringUtils.isNotBlank(appId)) {
+                        String appEnv = commonJson.getString("appEnv");
                         curTableName = String.format(tableName, appId);
-//                        curTableName += ((StringUtils.isNotBlank(appEnv) && !appEnv.toUpperCase().equals("PRD")) ? ("_" + appEnv.toLowerCase()) : "");
+                        curTableName += ((StringUtils.isNotBlank(appEnv) && !appEnv.toUpperCase().equals("PRD")) ? ("_" + appEnv.toLowerCase()) : "");
                         resultMap.put("tableName", curTableName);
                     } else {
                         continue;
@@ -152,16 +157,19 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     });
                     Map<String, String> eventMap = JSONObject.parseObject(eventJson.toJSONString(), new TypeReference<Map<String, String>>() {
                     });
-
+                    if(commonJson.containsKey("cookie")){
+                        Map<String, Object> cookieMap = commonJson.getJSONObject("cookie");
+                        resultMap.putAll(cookieMap);
+                    }
                     resultMap.putAll(commonMap);
                     resultMap.putAll(eventMap);
-                    if(resultMap.containsKey("url") && resultMap.get("url").length() > 250){
-                        resultMap.put("url", resultMap.get("url").substring(0,250));
+                    if(resultMap.containsKey("url") && resultMap.get("url").toString().length() > 250){
+                        resultMap.put("url", resultMap.get("url").toString().substring(0,250));
                     }
 
                     resultMap.put("detail", eventJson.toJSONString());
                     resultMap.put("common", commonJson.toJSONString());
-
+                    log.info(JSONObject.toJSONString(resultMap));
                     resultList.add(resultMap);
                 } else {
                     result = Status.BACKOFF;
@@ -175,12 +183,12 @@ public class MysqlSink extends AbstractSink implements Configurable {
                         String curtable = null;
                         Map<String, PreparedStatement> tableStatment = new HashMap();
                         List<String> columnNames;
-                        for (Map<String, String> temp : resultList) {
-                            curtable = temp.get("tableName");
+                        for (Map<String, Object> temp : resultList) {
+                            curtable = temp.get("tableName").toString();
                             tableStatment.putIfAbsent(curtable, getPrepareStatement(curtable));
                             columnNames = getColumnNames(curtable);
                             for (int i = 0; i < columnNames.size(); i++) {
-                                tableStatment.get(curtable).setString(i + 1, temp.get(columnNames.get(i)));
+                                tableStatment.get(curtable).setString(i + 1, temp.containsKey(columnNames.get(i)) ? temp.get(columnNames.get(i)).toString() : null);
                             }
                             tableStatment.get(curtable).addBatch();
                         }
@@ -192,6 +200,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     } catch (SQLException e) {
                         log.error("error execute batch to table " + curTableName, e);
                         conn.rollback();
+                        result = Status.BACKOFF;
                     }
                 }
             }
