@@ -65,6 +65,7 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 		// TODO Auto-generated method stub
 	}
 
+
 	/* (non-Javadoc)
 	 * @see org.apache.flume.source.http.HTTPSourceHandler#getEvents(javax.servlet.http.HttpServletRequest)
 	 */
@@ -130,9 +131,9 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 					appId = commonO.getLong("appId");
 					//进行userId解密
 					commonO.put("ip", ip);
-					if (userId != null && Pattern.matches(base64Model, userId)) {
-						commonO.put("userId", AesEcryptUtils.decrypt(userId));
-					}
+//					if (userId != null && Pattern.matches(base64Model, userId)) {
+//						commonO.put("userId", AesEcryptUtils.decrypt(userId));
+//					}
 					if (cookieMap.size() > 0) {
 						commonO.put("cookie", cookieMap);
 					}

@@ -183,16 +183,13 @@ public class MysqlSink extends AbstractSink implements Configurable {
                             tableStatment.get(curtable).addBatch();
                         }
                         for (PreparedStatement statment : tableStatment.values()) {
-                            int[] batchResult = statment.executeBatch();
-                            conn.commit();
-                            for (int i : batchResult) {
-                                System.out.println("影响的行数" + i);
-                            }
+                            statment.executeBatch();
                         }
+                        conn.commit();
                         log.info("succeed in insert {} records of data", resultList.size());
                     } catch (Exception e) {
                         conn.rollback();
-                        log.error("fail to batch insert data, try to insert one by one");
+                        log.error("fail to batch insert data, rollback and try to insert one by one");
                         Integer succeedCount = 0;
                         Integer failCount = 0;
                         for (Map<String, String> temp : resultList) {
