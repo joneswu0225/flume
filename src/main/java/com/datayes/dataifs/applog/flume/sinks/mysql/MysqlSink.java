@@ -31,6 +31,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
     private String tableName;
     private int expirationTime;
     private Connection conn;
+    public static Object lock = new Object();
     private int batchSize;
 
     private static final String CONNURL = "jdbc:mysql://%s:%s/%s?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true";
@@ -77,7 +78,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
         tt.schedule(new TimerTask() {//创建一个定时任务
             @Override
             public void run() {
-                synchronized (conn) {
+                synchronized (lock) {
                     refreshDbConn();
                 }
             }
@@ -87,10 +88,10 @@ public class MysqlSink extends AbstractSink implements Configurable {
     private void refreshDbConn() {
         log.debug("start to refresh db connection");
         try {
+            TimerConnMap.clear(conn);
             String url = String.format(CONNURL, hostname, port, databaseName);
             conn = DriverManager.getConnection(url, user, password);
             conn.setAutoCommit(false);
-            TimerConnMap.clear();
         } catch (SQLException e) {
             log.error("fail to create db connection ", e);
         }
@@ -163,20 +164,17 @@ public class MysqlSink extends AbstractSink implements Configurable {
                     resultMap.put("common", commonJson.toJSONString());
 
                     resultList.add(resultMap);
-                } else {
-                    result = Status.BACKOFF;
-                    break;
                 }
             }
-
             if (CollectionUtils.isNotEmpty(resultList)) {
-                synchronized (conn) {
+                log.info("start to handle {} records", resultList.size());
+                synchronized (lock) {
+                    Map<String, PreparedStatement> tableStatment = new HashMap();
+                    List<String> columnNames;
+                    // 先批量插入， 若出錯，则回滚单条插
                     try {
-                        String curtable = null;
-                        Map<String, PreparedStatement> tableStatment = new HashMap();
-                        List<String> columnNames;
                         for (Map<String, String> temp : resultList) {
-                            curtable = temp.get("tableName");
+                            String curtable = temp.get("tableName");
                             tableStatment.putIfAbsent(curtable, getPrepareStatement(curtable));
                             columnNames = getColumnNames(curtable);
                             for (int i = 0; i < columnNames.size(); i++) {
@@ -184,26 +182,42 @@ public class MysqlSink extends AbstractSink implements Configurable {
                             }
                             tableStatment.get(curtable).addBatch();
                         }
-                        for(PreparedStatement statment:tableStatment.values()){
-                            statment.executeBatch();
+                        for (PreparedStatement statment : tableStatment.values()) {
+                            int[] batchResult = statment.executeBatch();
+                            conn.commit();
+                            for (int i : batchResult) {
+                                System.out.println("影响的行数" + i);
+                            }
+                        }
+                        log.info("succeed in insert {} records of data", resultList.size());
+                    } catch (Exception e) {
+                        conn.rollback();
+                        log.error("fail to batch insert data, try to insert one by one");
+                        Integer succeedCount = 0;
+                        Integer failCount = 0;
+                        for (Map<String, String> temp : resultList) {
+                            String curtable = temp.get("tableName");
+                            tableStatment.putIfAbsent(curtable, getPrepareStatement(curtable));
+                            columnNames = getColumnNames(curtable);
+                            for (int i = 0; i < columnNames.size(); i++) {
+                                tableStatment.get(curtable).setString(i + 1, temp.get(columnNames.get(i)));
+                            }
+                            try {
+                                tableStatment.get(curtable).execute();
+                                succeedCount++;
+                            } catch (Exception e1) {
+                                failCount++;
+                                log.error("fail to insert data : " + JSONObject.toJSONString(temp), e1);
+                            }
                         }
                         conn.commit();
-                        log.info("finish insert {} records to table {}", resultList.size(), curTableName);
-                    } catch (SQLException e) {
-                        log.error("error execute batch to table " + curTableName, e);
-                        conn.rollback();
+                        log.info(String.format("finish handle %s records, succeed: %s, fail: %s", resultList.size(), succeedCount, failCount));
                     }
                 }
             }
             transaction.commit();
         } catch (Exception e) {
-            result = Status.BACKOFF;
             log.error("Failed to commit transaction.", e);
-            try {
-                transaction.rollback();
-            } catch (Exception et){
-                log.error("Failed to rollback transaction.", et);
-            }
             Throwables.propagate(e);
         } finally {
             transaction.close();
@@ -271,9 +285,17 @@ class TimerConnMap {
         keytime.put(key, System.currentTimeMillis());
     }
 
-    public static void clear() {
-        statmentMap.clear();
-        keytime.clear();
+    public static void clear(Connection conn) throws SQLException {
+        synchronized (MysqlSink.lock) {
+            if (conn != null) {
+                for (PreparedStatement statement : statmentMap.values()) {
+                    statement.executeBatch();
+                }
+                conn.commit();
+            }
+            statmentMap.clear();
+            keytime.clear();
+        }
     }
 
     public static boolean containsKey(String key) {

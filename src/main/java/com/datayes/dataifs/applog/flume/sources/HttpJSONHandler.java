@@ -23,7 +23,6 @@
 package com.datayes.dataifs.applog.flume.sources;
 
 import java.io.BufferedReader;
-import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.UnsupportedCharsetException;
 import java.text.SimpleDateFormat;
@@ -93,9 +92,11 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 	     * Need not catch it since the source will catch it and return error.
 	     */
 		List<Event> eventList = new ArrayList<Event>(0);
+		String result;
+		String ip;
+		Map<String, String> cookieMap = new HashMap<>();
 		try (BufferedReader reader = request.getReader();) {
 			Cookie[] cookies = request.getCookies();
-			Map<String, String> cookieMap = new HashMap<>();
 			if(cookies != null){
 				for(Cookie cookie : cookies){
 					try {
@@ -111,51 +112,58 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 			while((temp = reader.readLine()) != null){
 				sb.append(temp);
 			}
-			String ip = getIp(request);
-			String result = sb.toString();
+			ip = getIp(request);
+			result = sb.toString();
 			log.debug("get request[ " + ip + " ]:" + result);
+		} catch (JsonSyntaxException ex) {
+			throw new HTTPBadRequestException("Fail to get request content");
+		}
+		try {
 			JSONArray array = JSON.parseArray(result);
-			if(array != null){
+			if (array != null) {
 				Long appId = array.getJSONObject(0).getJSONObject("common").getLong("appId");
 				log.info("get request[ " + ip + " ] appId :" + appId);
-				for(int i=0; i<array.size(); i++){
+				for (int i = 0; i < array.size(); i++) {
 					JSONObject requestO = array.getJSONObject(i);
 					JSONObject commonO = requestO.getJSONObject("common");
 					String userId = commonO.getString("userId");
 					appId = commonO.getLong("appId");
 					//进行userId解密
 					commonO.put("ip", ip);
-					if(userId != null && Pattern.matches(base64Model, userId)){
+					if (userId != null && Pattern.matches(base64Model, userId)) {
 						commonO.put("userId", AesEcryptUtils.decrypt(userId));
 					}
-					if(cookieMap.size() > 0){
+					if (cookieMap.size() > 0) {
 						commonO.put("cookie", cookieMap);
 					}
 					JSONArray events = requestO.getJSONArray("events");
 					String appEnv = commonO.getString("appEnv");
-					if(StringUtils.isEmpty( appEnv)){
+					if (StringUtils.isEmpty(appEnv)) {
 						appEnv = "PRD";
 					}
 					commonO.put("appEnv", appEnv.toUpperCase());
-					if(events != null){
-						//current page url.
-						String referer=request.getHeader("Referer");
+					String referer;
+					if(commonO.containsKey("referer")){
+						referer = commonO.getString("referer");
+						referer = referer.length() > 500 ? referer.substring(0,500) : referer;
+					} else {
+						referer = request.getHeader("Referer");
+					}
+					commonO.put("referer", referer);
 
-						for(int j=0; j < events.size(); j++){
+					if (events != null) {
+						for (int j = 0; j < events.size(); j++) {
 							JSONObject event = events.getJSONObject(j);
 							String eventId = event.getString("eventId");
 							Long timestamp = event.getLong("timestamp");
-							for(String key: event.keySet()){
-								if(event.getString(key) != null) {
+							for (String key : event.keySet()) {
+								if (event.getString(key) != null) {
 									try {
 										event.put(key, URLDecoder.decode(event.getString(key), "UTF-8"));
-									}catch (Exception e){
+									} catch (Exception e) {
 										event.put(key, event.getString(key));
 									}
 								}
-							}
-							if(referer != null){
-								event.put("referer", referer);
 							}
 							event.put("recordTimestamp", timestamp);
 							event.put("recordTime", stampToDate(timestamp));
@@ -181,8 +189,8 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 					}
 				}
 			}
-		} catch (JsonSyntaxException ex) {
-			throw new HTTPBadRequestException("Request has invalid JSON Syntax.", ex);
+		} catch (Exception e){
+			log.error("Request has invalid JSON Syntax. request body: " + result, e);
 		}
 
 		for (Event e : eventList) {
