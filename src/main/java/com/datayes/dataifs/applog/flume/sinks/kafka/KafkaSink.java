@@ -184,14 +184,14 @@ public class KafkaSink extends AbstractSink implements Configurable {
 			JSONObject eventObject = o.getJSONObject("event");
 			if(commmonObject != null){
 				for(Map.Entry<String, Object> entry : commmonObject.entrySet()){
-					extractOne.put(entry.getKey(), entry.getValue());;
+					extractOne.put(entry.getKey(), entry.getValue());
 				}
 			}
 			String appEnv = commmonObject.getString("appEnv");
 			if(StringUtils.isEmpty(appEnv)){
 			   appEnv = "PRD";
 			}
-			
+
 			if(eventObject != null){
 				for(Map.Entry<String, Object> entry : eventObject.entrySet()){
 					String key = entry.getKey();

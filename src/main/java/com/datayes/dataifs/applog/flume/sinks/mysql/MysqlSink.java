@@ -9,11 +9,10 @@ import com.google.common.base.Throwables;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
-import org.apache.flume.Channel;
-import org.apache.flume.Context;
-import org.apache.flume.Event;
-import org.apache.flume.Transaction;
+import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
+import org.apache.flume.instrumentation.MonitorService;
+import org.apache.flume.instrumentation.SinkCounter;
 import org.apache.flume.sink.AbstractSink;
 
 import java.sql.*;
@@ -22,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 
 @Slf4j
-public class MysqlSink extends AbstractSink implements Configurable {
+public class MysqlSink extends AbstractSink implements Configurable{
     private String hostname;
     private String port;
     private String databaseName;
@@ -32,8 +31,11 @@ public class MysqlSink extends AbstractSink implements Configurable {
     private int expirationTime;
     private Connection conn;
     public static Object lock = new Object();
-    private int batchSize;
 
+    private final CounterGroup counterGroup = new CounterGroup();
+    private SinkCounter sinkCounter;
+
+    private int batchSize;
     private static final String CONNURL = "jdbc:mysql://%s:%s/%s?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true";
     private static final String SELECTSQL = "select * from %s limit 0";
     private static final String INSERTSQL = "insert into %s (%s) values (%s)";
@@ -62,6 +64,10 @@ public class MysqlSink extends AbstractSink implements Configurable {
         Preconditions.checkArgument(batchSize > 0, "batchSize must be a positive number!!");
         expirationTime = context.getInteger(Constant.EXPIRATIONTIME, 120);
         TimerConnMap.setExpirationTime(expirationTime);
+        if (sinkCounter == null) {
+            sinkCounter = new SinkCounter(getName());
+        }
+
     }
 
     @Override
@@ -74,6 +80,7 @@ public class MysqlSink extends AbstractSink implements Configurable {
             log.error("ClassNotFountException", e);
         }
         refreshDbConn();
+        sinkCounter.start();
         Timer tt = new Timer();//定时类
         tt.schedule(new TimerTask() {//创建一个定时任务
             @Override
@@ -100,7 +107,6 @@ public class MysqlSink extends AbstractSink implements Configurable {
     @Override
     public void stop() {
         log.info("stop method coming ");
-        super.stop();
         if (TimerConnMap.size() > 0) {
             for (PreparedStatement statement : TimerConnMap.getAllStatment()) {
                 try {
@@ -117,109 +123,136 @@ public class MysqlSink extends AbstractSink implements Configurable {
                 log.error("SQLException ", e);
             }
         }
+        sinkCounter.incrementConnectionClosedCount();
+        sinkCounter.stop();
+        super.stop();
     }
 
     @Override
     public Status process() {
-        Status result = Status.READY;
+        Status status = null;
         Channel channel = getChannel();
         Transaction transaction = channel.getTransaction();
         Event event;
         String content;
         String curTableName = null;
         try {
+            int count;
             transaction.begin();
             List<Map<String, String>> resultList = new ArrayList<>();
-            for (int i = 0; i < batchSize; i++) {
+            for (count = 0; count < batchSize; count++) {
                 event = channel.take();
-                if (event != null) {//对事件进行处理
-                    content = new String(event.getBody(), "utf-8");
-
-                    JSONObject jsonObject = JSONObject.parseObject(content);
-                    JSONObject commonJson = jsonObject.getJSONObject("common");
-                    JSONObject eventJson = jsonObject.getJSONObject("event");
-
-                    Map<String, String> resultMap = new HashMap<>();
-                    String appId = commonJson.getString("appId");
-                    if (StringUtils.isNotBlank(appId)) {
-                        curTableName = String.format(tableName, appId);
-//                        curTableName += ((StringUtils.isNotBlank(appEnv) && !appEnv.toUpperCase().equals("PRD")) ? ("_" + appEnv.toLowerCase()) : "");
-                        resultMap.put("tableName", curTableName);
-                    } else {
-                        continue;
-                    }
-
-                    Map<String, String> commonMap = JSONObject.parseObject(commonJson.toJSONString(), new TypeReference<Map<String, String>>() {
-                    });
-                    Map<String, String> eventMap = JSONObject.parseObject(eventJson.toJSONString(), new TypeReference<Map<String, String>>() {
-                    });
-
-                    resultMap.putAll(commonMap);
-                    resultMap.putAll(eventMap);
-                    if(resultMap.containsKey("url") && resultMap.get("url").length() > 250){
-                        resultMap.put("url", resultMap.get("url").substring(0,250));
-                    }
-
-                    resultMap.put("detail", eventJson.toJSONString());
-                    resultMap.put("common", commonJson.toJSONString());
-
-                    resultList.add(resultMap);
+                if (event == null) {//对事件进行处理
+                    break;
                 }
+
+                content = new String(event.getBody(), "utf-8");
+                JSONObject jsonObject = JSONObject.parseObject(content);
+                JSONObject commonJson = jsonObject.getJSONObject("common");
+                JSONObject eventJson = jsonObject.getJSONObject("event");
+
+                Map<String, String> resultMap = new HashMap<>();
+                String appId = commonJson.getString("appId");
+                if (StringUtils.isNotBlank(appId)) {
+                    curTableName = String.format(tableName, appId);
+//                        curTableName += ((StringUtils.isNotBlank(appEnv) && !appEnv.toUpperCase().equals("PRD")) ? ("_" + appEnv.toLowerCase()) : "");
+                    resultMap.put("tableName", curTableName);
+                } else {
+                    continue;
+                }
+
+                Map<String, String> commonMap = JSONObject.parseObject(commonJson.toJSONString(), new TypeReference<Map<String, String>>() {
+                });
+                Map<String, String> eventMap = JSONObject.parseObject(eventJson.toJSONString(), new TypeReference<Map<String, String>>() {
+                });
+
+                resultMap.putAll(commonMap);
+                resultMap.putAll(eventMap);
+                if(resultMap.containsKey("url") && resultMap.get("url").length() > 250){
+                    resultMap.put("url", resultMap.get("url").substring(0,250));
+                }
+
+                resultMap.put("detail", eventJson.toJSONString());
+                resultMap.put("common", commonJson.toJSONString());
+
+                resultList.add(resultMap);
             }
-            if (CollectionUtils.isNotEmpty(resultList)) {
-                log.info("start to handle {} records", resultList.size());
-                synchronized (lock) {
-                    Map<String, PreparedStatement> tableStatment = new HashMap();
-                    List<String> columnNames;
-                    // 先批量插入， 若出錯，则回滚单条插
-                    try {
-                        for (Map<String, String> temp : resultList) {
-                            String curtable = temp.get("tableName");
-                            tableStatment.putIfAbsent(curtable, getPrepareStatement(curtable));
-                            columnNames = getColumnNames(curtable);
-                            for (int i = 0; i < columnNames.size(); i++) {
-                                tableStatment.get(curtable).setString(i + 1, temp.get(columnNames.get(i)));
+            int successCount = 0;
+            if(count <= 0){
+                sinkCounter.incrementBatchEmptyCount();
+                counterGroup.incrementAndGet("channel.underflow");
+                status = Status.BACKOFF;
+            } else {
+                if(count < batchSize) {
+                    sinkCounter.incrementBatchUnderflowCount();
+                    status = Status.BACKOFF;
+                } else {
+                    sinkCounter.incrementBatchCompleteCount();
+                }
+                sinkCounter.addToEventDrainAttemptCount(count);
+
+                if (CollectionUtils.isNotEmpty(resultList)) {
+                    log.info("start to handle {} records", resultList.size());
+                    synchronized (lock) {
+                        Map<String, PreparedStatement> tableStatment = new HashMap();
+                        List<String> columnNames;
+                        // 先批量插入， 若出錯，则回滚单条插
+                        try {
+                            for (Map<String, String> temp : resultList) {
+                                String curtable = temp.get("tableName");
+                                tableStatment.putIfAbsent(curtable, getPrepareStatement(curtable));
+                                columnNames = getColumnNames(curtable);
+                                for (int i = 0; i < columnNames.size(); i++) {
+                                    tableStatment.get(curtable).setString(i + 1, temp.get(columnNames.get(i)));
+                                }
+                                tableStatment.get(curtable).addBatch();
                             }
-                            tableStatment.get(curtable).addBatch();
-                        }
-                        for (PreparedStatement statment : tableStatment.values()) {
-                            statment.executeBatch();
-                        }
-                        conn.commit();
-                        log.info("succeed in insert {} records of data", resultList.size());
-                    } catch (Exception e) {
-                        conn.rollback();
-                        log.error("fail to batch insert data, rollback and try to insert one by one");
-                        Integer succeedCount = 0;
-                        Integer failCount = 0;
-                        for (Map<String, String> temp : resultList) {
-                            String curtable = temp.get("tableName");
-                            tableStatment.putIfAbsent(curtable, getPrepareStatement(curtable));
-                            columnNames = getColumnNames(curtable);
-                            for (int i = 0; i < columnNames.size(); i++) {
-                                tableStatment.get(curtable).setString(i + 1, temp.get(columnNames.get(i)));
+                            for (PreparedStatement statment : tableStatment.values()) {
+                                statment.executeBatch();
                             }
-                            try {
-                                tableStatment.get(curtable).execute();
-                                succeedCount++;
-                            } catch (Exception e1) {
-                                failCount++;
-                                log.error("fail to insert data : " + JSONObject.toJSONString(temp), e1);
+                            conn.commit();
+                            successCount = resultList.size();
+                            log.info("succeed in insert {} records of data", successCount);
+                        } catch (Exception e) {
+                            conn.rollback();
+                            log.error("fail to batch insert data, rollback and try to insert one by one");
+                            Integer failCount = 0;
+                            for (Map<String, String> temp : resultList) {
+                                String curtable = temp.get("tableName");
+                                tableStatment.putIfAbsent(curtable, getPrepareStatement(curtable));
+                                columnNames = getColumnNames(curtable);
+                                for (int i = 0; i < columnNames.size(); i++) {
+                                    tableStatment.get(curtable).setString(i + 1, temp.get(columnNames.get(i)));
+                                }
+                                try {
+                                    tableStatment.get(curtable).execute();
+                                    successCount++;
+                                } catch (Exception e1) {
+                                    failCount++;
+                                    log.error("fail to insert data : " + JSONObject.toJSONString(temp), e1);
+                                }
                             }
+                            conn.commit();
+                            log.info(String.format("finish handle %s records, succeed: %s, fail: %s", resultList.size(), successCount, failCount));
                         }
-                        conn.commit();
-                        log.info(String.format("finish handle %s records, succeed: %s, fail: %s", resultList.size(), succeedCount, failCount));
                     }
                 }
             }
             transaction.commit();
+            sinkCounter.addToEventDrainSuccessCount(successCount);
+            counterGroup.incrementAndGet("transaction.success");
         } catch (Exception e) {
-            log.error("Failed to commit transaction.", e);
-            Throwables.propagate(e);
+            try {
+                transaction.commit();
+                sinkCounter.addToEventDrainSuccessCount(0);
+                counterGroup.incrementAndGet("transaction.success");
+            } catch (Exception ex) {
+                log.error("Failed to commit transaction.", e);
+            }
         } finally {
             transaction.close();
         }
-        return result;
+        return status;
     }
 
     private List<String> getColumnNames(String tableName) {

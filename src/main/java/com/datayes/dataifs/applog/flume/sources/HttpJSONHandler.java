@@ -116,7 +116,7 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 			ip = getIp(request);
 			result = sb.toString();
 			log.debug("get request[ " + ip + " ]:" + result);
-		} catch (JsonSyntaxException ex) {
+		} catch (Exception ex) {
 			throw new HTTPBadRequestException("Fail to get request content");
 		}
 		try {
@@ -155,7 +155,7 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 					if (events != null) {
 						for (int j = 0; j < events.size(); j++) {
 							JSONObject event = events.getJSONObject(j);
-							String eventId = event.getString("eventId");
+							Long eventId = event.getLong("eventId");
 							Long timestamp = event.getLong("timestamp");
 							for (String key : event.keySet()) {
 								if (event.getString(key) != null) {
@@ -166,6 +166,7 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 									}
 								}
 							}
+							event.put("eventId", eventId);
 							event.put("recordTimestamp", timestamp);
 							event.put("recordTime", stampToDate(timestamp));
 							long curTimestamp = System.currentTimeMillis();
@@ -175,7 +176,7 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 							JSONEvent e = new JSONEvent();
 							Map<String, String> headers = new HashMap<String, String>();
 							headers.put("appId", appId.toString());
-							headers.put("eventId", eventId);
+							headers.put("eventId", eventId.toString());
 							headers.put("timestamp", String.valueOf(curTimestamp));
 							headers.put("appEnv", appEnv);
 
@@ -187,6 +188,7 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 							e.setBody(newEventBody.toJSONString().getBytes("utf-8"));
 							eventList.add(e);
 						}
+						log.info(String.format("[extract events] push %s events to channel", eventList.size()));
 					}
 				}
 			}
