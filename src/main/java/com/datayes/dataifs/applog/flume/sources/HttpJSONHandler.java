@@ -22,17 +22,9 @@
  */
 package com.datayes.dataifs.applog.flume.sources;
 
-import java.io.BufferedReader;
-import java.net.URL;
-import java.net.URLDecoder;
-import java.nio.charset.UnsupportedCharsetException;
-import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.regex.Pattern;
-
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServletRequest;
-
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.apache.flume.Context;
@@ -42,11 +34,13 @@ import org.apache.flume.event.JSONEvent;
 import org.apache.flume.source.http.HTTPBadRequestException;
 import org.apache.flume.source.http.HTTPSourceHandler;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
-import com.datayes.dataifs.applog.flume.utils.AesEcryptUtils;
-import com.google.gson.JsonSyntaxException;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import java.io.BufferedReader;
+import java.net.URLDecoder;
+import java.nio.charset.UnsupportedCharsetException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 /**
  * @author qihai.su
@@ -65,6 +59,7 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 	public void configure(Context context) {
 		// TODO Auto-generated method stub
 	}
+
 
 	/* (non-Javadoc)
 	 * @see org.apache.flume.source.http.HTTPSourceHandler#getEvents(javax.servlet.http.HttpServletRequest)
@@ -93,9 +88,11 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 	     * Need not catch it since the source will catch it and return error.
 	     */
 		List<Event> eventList = new ArrayList<Event>(0);
+		String result;
+		String ip;
+		Map<String, String> cookieMap = new HashMap<>();
 		try (BufferedReader reader = request.getReader();) {
 			Cookie[] cookies = request.getCookies();
-			Map<String, String> cookieMap = new HashMap<>();
 			if(cookies != null){
 				for(Cookie cookie : cookies){
 					try {
@@ -106,38 +103,43 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 				}
 				log.debug("cookie from " + request.getRequestURI() + " " + JSON.toJSONString(cookies));
 			}
-			Map<String, String> headerMap = new HashMap<>();
-			Enumeration<String> headerNames = request.getHeaderNames();
-			while (headerNames.hasMoreElements()){
-				String name = headerNames.nextElement();
-				headerMap.put(name.replaceAll("-",""), request.getHeader(name));
-			}
-			if(!headerMap.containsKey("referer")){
-				headerMap.put("referer", "");
-			}
+
 			String temp=null;
 			StringBuilder sb = new StringBuilder();
 			while((temp = reader.readLine()) != null){
 				sb.append(temp);
 			}
-			String ip = getIp(request);
-			String result = sb.toString();
+			ip = getIp(request);
+			result = sb.toString();
 			log.debug("get request[ " + ip + " ]:" + result);
+		} catch (Exception ex) {
+			throw new HTTPBadRequestException("Fail to get request content");
+		}
+		try {
 			JSONArray array = JSON.parseArray(result);
-			if(array != null){
+			if (array != null) {
 				Long appId = array.getJSONObject(0).getJSONObject("common").getLong("appId");
 				log.info("get request[ " + ip + " ] appId :" + appId);
-				for(int i=0; i<array.size(); i++){
+				Map<String, String> headerMap = new HashMap<>();
+				Enumeration<String> headerNames = request.getHeaderNames();
+				while (headerNames.hasMoreElements()){
+					String name = headerNames.nextElement();
+					headerMap.put(name.replaceAll("-",""), request.getHeader(name));
+				}
+				if(!headerMap.containsKey("referer")){
+					headerMap.put("referer", "");
+				}
+				for (int i = 0; i < array.size(); i++) {
 					JSONObject requestO = array.getJSONObject(i);
 					JSONObject commonO = requestO.getJSONObject("common");
 					String userId = commonO.getString("userId");
 					appId = commonO.getLong("appId");
 					//进行userId解密
 					commonO.put("ip", ip);
-					if(userId != null && Pattern.matches(base64Model, userId)){
-						commonO.put("userId", AesEcryptUtils.decrypt(userId));
-					}
-					if(cookieMap.size() > 0){
+//					if (userId != null && Pattern.matches(base64Model, userId)) {
+//						commonO.put("userId", AesEcryptUtils.decrypt(userId));
+//					}
+					if (cookieMap.size() > 0) {
 						commonO.put("cookie", cookieMap);
 					}
 					if(headerMap.size() > 0){
@@ -145,30 +147,34 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 					}
 					JSONArray events = requestO.getJSONArray("events");
 					String appEnv = commonO.getString("appEnv");
-					if(StringUtils.isEmpty( appEnv)){
+					if (StringUtils.isEmpty(appEnv)) {
 						appEnv = "PRD";
 					}
 					commonO.put("appEnv", appEnv.toUpperCase());
-					if(events != null){
-						//current page url.
-						String referer=request.getHeader("Referer");
+					String referer;
+					if(commonO.containsKey("referer")){
+						referer = commonO.getString("referer");
+						referer = referer.length() > 500 ? referer.substring(0,500) : referer;
+					} else {
+						referer = request.getHeader("Referer");
+					}
+					commonO.put("referer", referer);
 
-						for(int j=0; j < events.size(); j++){
+					if (events != null) {
+						for (int j = 0; j < events.size(); j++) {
 							JSONObject event = events.getJSONObject(j);
-							String eventId = event.getString("eventId");
+							Long eventId = event.getLong("eventId");
 							Long timestamp = event.getLong("timestamp");
-							for(String key: event.keySet()){
-								if(event.getString(key) != null) {
+							for (String key : event.keySet()) {
+								if (event.getString(key) != null) {
 									try {
 										event.put(key, URLDecoder.decode(event.getString(key), "UTF-8"));
-									}catch (Exception e){
+									} catch (Exception e) {
 										event.put(key, event.getString(key));
 									}
 								}
 							}
-							if(referer != null){
-								event.put("referer", referer);
-							}
+							event.put("eventId", eventId);
 							event.put("recordTimestamp", timestamp);
 							event.put("recordTime", stampToDate(timestamp));
 							long curTimestamp = System.currentTimeMillis();
@@ -178,7 +184,7 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 							JSONEvent e = new JSONEvent();
 							Map<String, String> headers = new HashMap<String, String>();
 							headers.put("appId", appId.toString());
-							headers.put("eventId", eventId);
+							headers.put("eventId", eventId.toString());
 							headers.put("timestamp", String.valueOf(curTimestamp));
 							headers.put("appEnv", appEnv);
 
@@ -190,11 +196,12 @@ public class HttpJSONHandler implements HTTPSourceHandler {
 							e.setBody(newEventBody.toJSONString().getBytes("utf-8"));
 							eventList.add(e);
 						}
+						log.info(String.format("[extract events] push %s events to channel", eventList.size()));
 					}
 				}
 			}
-		} catch (JsonSyntaxException ex) {
-			throw new HTTPBadRequestException("Request has invalid JSON Syntax.", ex);
+		} catch (Exception e){
+			log.error("Request has invalid JSON Syntax. request body: " + result, e);
 		}
 
 		for (Event e : eventList) {

@@ -298,7 +298,6 @@ public class FlumeHttpSource extends AbstractSource implements
 				HttpServletResponse response) throws IOException {
 			List<Event> events = Collections.emptyList(); // create empty list
 			try {
-//				response.setHeader("Access-Control-Allow-Origin", "https://192.168.208.130:8443,https://app.wmcloud.com");
 				response.setHeader("Access-Control-Allow-Origin", request.getHeader("origin"));
 				response.setHeader("Access-Control-Allow-Credentials", "true");
 				response.setHeader("Access-Control-Allow-Headers", "X-Requested-With");
