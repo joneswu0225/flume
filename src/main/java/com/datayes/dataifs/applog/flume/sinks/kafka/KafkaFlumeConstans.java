@@ -1,19 +1,3 @@
-/*
- *  Copyright (c) 2013.09.06 BeyondJ2EE.
- *  * All right reserved.
- *  * http://beyondj2ee.github.com
- *  * This software is the confidential and proprietary information of BeyondJ2EE
- *  * , Inc. You shall not disclose such Confidential Information and
- *  * shall use it only in accordance with the terms of the license agreement
- *  * you entered into with BeyondJ2EE.
- *  *
- *  * Revision History
- *  * Author              Date                  Description
- *  * ===============    ================       ======================================
- *  *  beyondj2ee
- *
- */
-
 package com.datayes.dataifs.applog.flume.sinks.kafka;
 
 /**
